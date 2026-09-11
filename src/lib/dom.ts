@@ -6,7 +6,12 @@ const STICKY_OFFSET = 96;
 export const stepElementId = (anchor: string) => `step-${anchor}`;
 
 export function scrollToStep(anchor: string) {
-  const el = document.getElementById(stepElementId(anchor));
+  scrollToElement(stepElementId(anchor));
+}
+
+/** Smooth-scrolls the element with this id to just below the sticky bars. */
+export function scrollToElement(id: string) {
+  const el = document.getElementById(id);
   if (!el) return;
   const top = el.getBoundingClientRect().top + window.scrollY - STICKY_OFFSET;
   window.scrollTo({ top, behavior: 'smooth' });

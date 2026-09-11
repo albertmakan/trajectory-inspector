@@ -1,18 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
-import { Header } from './components/Header';
-import { scrollToStep } from './lib/dom';
-import { shortId } from './lib/format';
-import { defaultComparison, type RunIndex } from './lib/runs';
-import type { Run } from './schema';
-import type { View } from './types';
-import { CallGraph } from './views/CallGraph';
-import { RunDiff } from './views/RunDiff';
-import { INITIAL_RUN_FILTERS, RunList, type RunFilters } from './views/RunList';
-import type { OpenState } from './views/timeline/disclosure';
-import { Timeline, type StepFilter } from './views/timeline/Timeline';
+import { startTransition, useEffect, useMemo, useState } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useMatch,
+  useNavigate,
+} from "react-router";
+import { Header } from "./components/Header";
+import { scrollToElement } from "./lib/dom";
+import {
+  diffPath,
+  hashTarget,
+  ROUTES,
+  timelinePath,
+  viewPath,
+} from "./lib/routes";
+import { defaultComparison, type RunIndex } from "./lib/runs";
+import { openTab, tabKey, tabPath, type OpenTab } from "./lib/tabs";
+import type { Run } from "./schema";
+import type { View } from "./types";
+import { CallGraph } from "./views/CallGraph";
+import { RunDiff } from "./views/RunDiff";
+import { INITIAL_RUN_FILTERS, RunList, type RunFilters } from "./views/RunList";
+import type { OpenState } from "./views/timeline/disclosure";
+import { Timeline, type StepFilter } from "./views/timeline/Timeline";
 
 export interface InspectorOptions {
-  /** Tab shown on first load. */
+  /** View that `/` redirects to. */
   initialView?: View;
   /** Open every tool call and result payload by default (errors always start open). */
   expandToolPayloads?: boolean;
@@ -20,25 +35,88 @@ export interface InspectorOptions {
   showReasoning?: boolean;
 }
 
-export function Inspector({ index, initialView = 'runs', expandToolPayloads = false, showReasoning = true }: InspectorOptions & { index: RunIndex }) {
-  const [view, setView] = useState<View>(initialView);
-  const [activeRunId, setActiveRunId] = useState(() => index.roots[0].id);
-  // Per-view state lives here so it survives switching tabs.
-  const [stepFilter, setStepFilter] = useState<StepFilter>('all');
+export function Inspector({
+  index,
+  initialView = "runs",
+  expandToolPayloads = false,
+  showReasoning = true,
+}: InspectorOptions & { index: RunIndex }) {
+  const navigate = useNavigate();
+  const { pathname, hash } = useLocation();
+  const timelineMatch = useMatch(ROUTES.timeline);
+  const graphMatch = useMatch(ROUTES.graph);
+  const diffMatch = useMatch(ROUTES.diff);
+
+  const [tabs, setTabs] = useState<OpenTab[]>([]);
+  const [selection, setSelection] = useState<string[]>(() =>
+    defaultComparison(index),
+  );
+  // Per-view state lives here so it survives route changes.
+  const [stepFilter, setStepFilter] = useState<StepFilter>("all");
   const [open, setOpen] = useState<OpenState>({});
   const [runFilters, setRunFilters] = useState<RunFilters>(INITIAL_RUN_FILTERS);
-  const [selection, setSelection] = useState<string[]>(() => defaultComparison(index));
-  const pendingJump = useRef<string | null>(null);
 
-  // A step requested from another view can only be scrolled to once the timeline has rendered.
+  const runsFor = (ids: string[]) =>
+    ids
+      .map((id) => index.byId.get(id))
+      .filter((r): r is Run => r !== undefined);
+
+  const routeRunId = (timelineMatch ?? graphMatch)?.params.runId;
+  const routeRun =
+    routeRunId === undefined ? undefined : index.byId.get(routeRunId);
+  const onGraph = graphMatch !== null;
+
+  const onDiff = diffMatch !== null;
+  const diffLeft = diffMatch?.params.left;
+  const diffRight = diffMatch?.params.right;
+  const diffRuns = runsFor(
+    [diffLeft, diffRight].filter((id): id is string => !!id),
+  );
+
+  // The current route's tab: a run, or a diff of two known runs.
+  const routeTab = useMemo((): OpenTab | undefined => {
+    if (routeRun) {
+      return {
+        kind: "run",
+        runId: routeRun.id,
+        view: onGraph ? "graph" : "timeline",
+      };
+    }
+    if (
+      diffLeft &&
+      diffRight &&
+      index.byId.has(diffLeft) &&
+      index.byId.has(diffRight)
+    ) {
+      return { kind: "diff", left: diffLeft, right: diffRight };
+    }
+    return undefined;
+  }, [routeRun, onGraph, diffLeft, diffRight, index]);
+
+  // Visiting a run or diff opens its tab: shown from this render, kept in state by the effect.
+  const openTabs = routeTab ? openTab(tabs, routeTab) : tabs;
+  const activeKey = routeTab && tabKey(routeTab);
+
   useEffect(() => {
-    if (view !== 'timeline' || pendingJump.current === null) return;
-    scrollToStep(pendingJump.current);
-    pendingJump.current = null;
-  }, [view]);
+    if (routeTab) setTabs((cur) => openTab(cur, routeTab));
+  }, [routeTab]);
 
-  const activeRun = index.byId.get(activeRunId) ?? index.roots[0];
-  const selectedRuns = selection.map((id) => index.byId.get(id)).filter((r): r is Run => r !== undefined);
+  // A diff reached by URL or history becomes the run list's picks, so "back to pair" shows it.
+  useEffect(() => {
+    if (onDiff)
+      setSelection(
+        [diffLeft, diffRight].filter(
+          (id): id is string => !!id && index.byId.has(id),
+        ),
+      );
+  }, [onDiff, diffLeft, diffRight, index]);
+
+  // New routes start at the top, unless the hash targets a step, which only exists once the timeline has rendered.
+  useEffect(() => {
+    const target = hashTarget(hash);
+    if (target) scrollToElement(target);
+    else window.scrollTo({ top: 0 });
+  }, [pathname, hash]);
 
   // Picking a third run drops the older of the two.
   const togglePick = (id: string) =>
@@ -48,61 +126,112 @@ export function Inspector({ index, initialView = 'runs', expandToolPayloads = fa
       return [cur[1], id];
     });
 
-  const goTo = (next: View) => {
-    setView(next);
-    window.scrollTo({ top: 0 });
-  };
-
+  // Like reopening a file, a run that is already open returns to the view its tab shows.
   const openRun = (id: string) => {
-    setActiveRunId(id);
-    goTo('timeline');
+    const tab = openTabs.find((t) => t.kind === "run" && t.runId === id);
+    navigate(tab ? tabPath(tab) : timelinePath(id));
   };
 
-  const openStep = (stepId: string) => {
-    pendingJump.current = stepId;
-    setView('timeline');
+  // Closing the current tab moves to its right-hand neighbor, else its left, else the run list.
+  const closeTab = (tab: OpenTab) => {
+    const key = tabKey(tab);
+    const i = openTabs.findIndex((t) => tabKey(t) === key);
+    if (key === activeKey) {
+      const next = openTabs[i + 1] ?? openTabs[i - 1];
+      navigate(next ? tabPath(next) : ROUTES.runs);
+    }
+    // The router changes location inside a transition. Closing in the same one keeps
+    // the tab from being re-opened for a frame by the route it is leaving.
+    startTransition(() => setTabs(openTabs.filter((t) => tabKey(t) !== key)));
   };
 
-  const runLabel =
-    view !== 'diff'
-      ? shortId(activeRun.id)
-      : selectedRuns.length === 2
-        ? `${shortId(selectedRuns[0].id)} ↔ ${shortId(selectedRuns[1].id)}`
-        : 'pick two runs to diff';
+  const home = (
+    <Navigate
+      to={viewPath(initialView, index.roots[0].id, defaultComparison(index))}
+      replace
+    />
+  );
+  const unknownRun = <Navigate to={ROUTES.runs} replace />;
 
   return (
     <div className="app">
-      <Header view={view} onViewChange={setView} runLabel={runLabel} project="agent-eval / payments-flake" />
+      <Header
+        index={index}
+        tabs={openTabs}
+        activeKey={activeKey}
+        onClose={closeTab}
+        project=""
+      />
 
-      {view === 'timeline' && (
-        <Timeline
-          run={activeRun}
-          index={index}
-          filter={stepFilter}
-          onFilterChange={setStepFilter}
-          open={open}
-          onOpenChange={setOpen}
-          expandToolPayloads={expandToolPayloads}
-          showReasoning={showReasoning}
+      <Routes>
+        <Route path="/" element={home} />
+
+        <Route
+          path={ROUTES.timeline}
+          element={
+            routeRun ? (
+              <Timeline
+                run={routeRun}
+                index={index}
+                filter={stepFilter}
+                onFilterChange={setStepFilter}
+                open={open}
+                onOpenChange={setOpen}
+                expandToolPayloads={expandToolPayloads}
+                showReasoning={showReasoning}
+              />
+            ) : (
+              unknownRun
+            )
+          }
         />
-      )}
 
-      {view === 'graph' && <CallGraph run={activeRun} index={index} onOpenStep={openStep} />}
-
-      {view === 'runs' && (
-        <RunList
-          index={index}
-          filters={runFilters}
-          onFiltersChange={setRunFilters}
-          selection={selection}
-          selectedRuns={selectedRuns}
-          onTogglePick={togglePick}
-          onOpenRun={openRun}
-          onDiff={() => goTo('diff')}
+        <Route
+          path={ROUTES.graph}
+          element={
+            routeRun ? (
+              <CallGraph
+                run={routeRun}
+                index={index}
+                onOpenStep={(stepId) =>
+                  navigate(timelinePath(routeRun.id, stepId))
+                }
+              />
+            ) : (
+              unknownRun
+            )
+          }
         />
-      )}
 
-      {view === 'diff' && <RunDiff index={index} selectedRuns={selectedRuns} onBack={() => goTo('runs')} />}
+        <Route
+          path={ROUTES.runs}
+          element={
+            <RunList
+              index={index}
+              filters={runFilters}
+              onFiltersChange={setRunFilters}
+              selection={selection}
+              selectedRuns={runsFor(selection)}
+              onTogglePick={togglePick}
+              onOpenRun={openRun}
+              onDiff={() => navigate(diffPath(selection))}
+            />
+          }
+        />
+
+        <Route
+          path={ROUTES.diff}
+          element={
+            <RunDiff
+              index={index}
+              selectedRuns={diffRuns}
+              onBack={() => navigate(ROUTES.runs)}
+            />
+          }
+        />
+
+        <Route path="*" element={home} />
+      </Routes>
     </div>
   );
 }

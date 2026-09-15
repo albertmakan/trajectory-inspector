@@ -38,7 +38,7 @@ async function executeTool(name: string, input: any): Promise<unknown> {
 
 // --- Instrumented loop --------------------------------------------------
 
-async function runAgent(
+export async function runAgent(
   task: string,
   model = "claude-sonnet-4-6",
 ): Promise<Run> {

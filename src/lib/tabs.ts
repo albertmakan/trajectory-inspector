@@ -1,7 +1,11 @@
 import type { View } from '../types';
 import { shortId } from './format';
 import { diffPath, graphPath, timelinePath } from './routes';
-import type { RunIndex } from './runs';
+
+/** Any run index, hydrated or metadata-only, that can name a run. */
+export interface TaskLookup {
+  byId: ReadonlyMap<string, { task: string }>;
+}
 
 export type RunView = Extract<View, 'timeline' | 'graph'>;
 
@@ -27,7 +31,7 @@ export const tabLabel = (tab: OpenTab) =>
   tab.kind === 'run' ? shortId(tab.runId) : `${shortId(tab.left)} ↔ ${shortId(tab.right)}`;
 
 /** Full ids and tasks, for the tab's tooltip. */
-export function tabTitle(tab: OpenTab, index: RunIndex): string {
+export function tabTitle(tab: OpenTab, index: TaskLookup): string {
   const ids = tab.kind === 'run' ? [tab.runId] : [tab.left, tab.right];
   return ids.map((id) => `${id} — ${index.byId.get(id)?.task ?? 'unknown run'}`).join('\n');
 }

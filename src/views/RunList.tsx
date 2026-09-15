@@ -3,8 +3,14 @@ import { Chip } from '../components/Chip';
 import { cx } from '../lib/cx';
 import { pressable } from '../lib/dom';
 import { formatCost, formatRunDuration, shortId, statusWord, subagentSummary } from '../lib/format';
-import { RUN_STATUSES, runDurationMs, subagentCounts, type RunIndex, type RunStatus } from '../lib/runs';
-import type { Run } from '../schema';
+import {
+  metaSubagentCounts,
+  RUN_STATUSES,
+  runDurationMs,
+  type MetaIndex,
+  type RunMeta,
+  type RunStatus,
+} from '../lib/runs';
 
 export interface RunFilters {
   query: string;
@@ -20,18 +26,18 @@ const STATUS_OPTIONS: RunFilters['status'][] = ['all', ...RUN_STATUSES];
 const PER_PAGE_OPTIONS = [10, 25, 50];
 const VISIBLE_TAGS = 2;
 
-function matches(run: Run, filters: RunFilters, query: string): boolean {
+function matches(run: RunMeta, filters: RunFilters, query: string): boolean {
   if (filters.status !== 'all' && run.status !== filters.status) return false;
   if (filters.tag !== 'all' && !run.tags.includes(filters.tag)) return false;
   return !query || [run.task, run.id, run.model, ...run.tags].join(' ').toLowerCase().includes(query);
 }
 
 interface RunListProps {
-  index: RunIndex;
+  index: MetaIndex;
   filters: RunFilters;
   onFiltersChange: Dispatch<SetStateAction<RunFilters>>;
   selection: string[];
-  selectedRuns: Run[];
+  selectedRuns: RunMeta[];
   onTogglePick: (id: string) => void;
   onOpenRun: (id: string) => void;
   onDiff: () => void;
@@ -145,6 +151,7 @@ export function RunList({ index, filters, onFiltersChange, selection, selectedRu
           <RunRow
             key={run.id}
             run={run}
+            subagents={metaSubagentCounts(index, run)}
             slot={selection.indexOf(run.id)}
             onTogglePick={() => onTogglePick(run.id)}
             onOpen={() => onOpenRun(run.id)}
@@ -195,16 +202,16 @@ export function RunList({ index, filters, onFiltersChange, selection, selectedRu
 }
 
 interface RunRowProps {
-  run: Run;
+  run: RunMeta;
+  subagents: { count: number; failed: number };
   /** Index in the comparison selection, or -1 when not picked. */
   slot: number;
   onTogglePick: () => void;
   onOpen: () => void;
 }
 
-function RunRow({ run, slot, onTogglePick, onOpen }: RunRowProps) {
+function RunRow({ run, subagents, slot, onTogglePick, onOpen }: RunRowProps) {
   const picked = slot >= 0;
-  const subagents = subagentCounts(run);
   const hiddenTags = run.tags.length - VISIBLE_TAGS;
 
   return (
@@ -225,7 +232,7 @@ function RunRow({ run, slot, onTogglePick, onOpen }: RunRowProps) {
       <span className={cx('status-dot', `status-dot--${run.status}`)} title={run.status.replace('_', ' ')} />
       <span className="run-row__task">{run.task}</span>
       <span className="run-row__model">{run.model}</span>
-      <span className="run-row__num">{run.steps.length}</span>
+      <span className="run-row__num">{run.stepCount}</span>
       <span className={cx('run-row__sub', subagents.failed > 0 && 'has-failures')}>{subagentSummary(subagents)}</span>
       <span className="run-row__num">{formatRunDuration(runDurationMs(run))}</span>
       <span className="run-row__num">{formatCost(run.totalCost)}</span>

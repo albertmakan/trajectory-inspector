@@ -61,7 +61,7 @@ export function SubagentCall({ item, index, disclosure, numberPrefix }: Subagent
       {open && (
         <div className="nested-run">
           <div className="nested-run__title">
-            NESTED RUN · {run ? formatTokens(run.totalTokens) : 'sub-run not found in runs.json'}
+            NESTED RUN · {run ? formatTokens(run.totalTokens) : 'sub-run not found'}
           </div>
           {children.map((child) => {
             switch (child.kind) {

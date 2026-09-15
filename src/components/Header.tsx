@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { Link, NavLink } from "react-router";
 import { cx } from "../lib/cx";
 import { ROUTES } from "../lib/routes";
-import type { RunIndex } from "../lib/runs";
 import {
   tabKey,
   tabLabel,
@@ -10,12 +9,13 @@ import {
   tabTitle,
   type OpenTab,
   type RunView,
+  type TaskLookup,
 } from "../lib/tabs";
 
 const RUN_VIEWS: RunView[] = ["timeline", "graph"];
 
 interface HeaderProps {
-  index: RunIndex;
+  index: TaskLookup;
   /** Open runs and diffs, in the order they were opened. The run list tab always comes first. */
   tabs: OpenTab[];
   /** Key of the current route's tab, if the route has one. */

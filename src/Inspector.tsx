@@ -1,4 +1,10 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import {
   Navigate,
   Route,
@@ -8,6 +14,8 @@ import {
   useNavigate,
 } from "react-router";
 import { Header } from "./components/Header";
+import { StatusScreen } from "./components/StatusScreen";
+import { useRunSubtree } from "./hooks/useRuns";
 import { scrollToElement } from "./lib/dom";
 import {
   diffPath,
@@ -16,7 +24,13 @@ import {
   timelinePath,
   viewPath,
 } from "./lib/routes";
-import { defaultComparison, type RunIndex } from "./lib/runs";
+import {
+  defaultComparison,
+  EMPTY_RUN_INDEX,
+  type MetaIndex,
+  type RunIndex,
+  type RunMeta,
+} from "./lib/runs";
 import { openTab, tabKey, tabPath, type OpenTab } from "./lib/tabs";
 import type { Run } from "./schema";
 import type { View } from "./types";
@@ -35,12 +49,38 @@ export interface InspectorOptions {
   showReasoning?: boolean;
 }
 
+interface SubtreeProps {
+  index: MetaIndex;
+  /** Runs to hydrate, along with everything they spawned. */
+  ids: string[];
+  children: (hydrated: RunIndex) => ReactElement;
+}
+
+/** Fetches the trajectories a view needs before rendering it. */
+function Subtree({ index, ids, children }: SubtreeProps) {
+  const state = useRunSubtree(index, ids);
+
+  if (state.status === "error") {
+    return (
+      <StatusScreen
+        title="COULD NOT LOAD TRAJECTORY"
+        detail={state.message}
+        error
+      />
+    );
+  }
+  if (state.status === "loading") {
+    return <StatusScreen title="LOADING TRAJECTORY" detail={ids.join(" · ")} />;
+  }
+  return children(state.index);
+}
+
 export function Inspector({
   index,
   initialView = "runs",
   expandToolPayloads = false,
   showReasoning = true,
-}: InspectorOptions & { index: RunIndex }) {
+}: InspectorOptions & { index: MetaIndex }) {
   const navigate = useNavigate();
   const { pathname, hash } = useLocation();
   const timelineMatch = useMatch(ROUTES.timeline);
@@ -56,10 +96,10 @@ export function Inspector({
   const [open, setOpen] = useState<OpenState>({});
   const [runFilters, setRunFilters] = useState<RunFilters>(INITIAL_RUN_FILTERS);
 
-  const runsFor = (ids: string[]) =>
+  const metasFor = (ids: string[]) =>
     ids
       .map((id) => index.byId.get(id))
-      .filter((r): r is Run => r !== undefined);
+      .filter((r): r is RunMeta => r !== undefined);
 
   const routeRunId = (timelineMatch ?? graphMatch)?.params.runId;
   const routeRun =
@@ -69,7 +109,7 @@ export function Inspector({
   const onDiff = diffMatch !== null;
   const diffLeft = diffMatch?.params.left;
   const diffRight = diffMatch?.params.right;
-  const diffRuns = runsFor(
+  const diffMetas = metasFor(
     [diffLeft, diffRight].filter((id): id is string => !!id),
   );
 
@@ -170,16 +210,25 @@ export function Inspector({
           path={ROUTES.timeline}
           element={
             routeRun ? (
-              <Timeline
-                run={routeRun}
-                index={index}
-                filter={stepFilter}
-                onFilterChange={setStepFilter}
-                open={open}
-                onOpenChange={setOpen}
-                expandToolPayloads={expandToolPayloads}
-                showReasoning={showReasoning}
-              />
+              <Subtree index={index} ids={[routeRun.id]}>
+                {(hydrated) => {
+                  const run = hydrated.byId.get(routeRun.id);
+                  return run ? (
+                    <Timeline
+                      run={run}
+                      index={hydrated}
+                      filter={stepFilter}
+                      onFilterChange={setStepFilter}
+                      open={open}
+                      onOpenChange={setOpen}
+                      expandToolPayloads={expandToolPayloads}
+                      showReasoning={showReasoning}
+                    />
+                  ) : (
+                    unknownRun
+                  );
+                }}
+              </Subtree>
             ) : (
               unknownRun
             )
@@ -190,13 +239,22 @@ export function Inspector({
           path={ROUTES.graph}
           element={
             routeRun ? (
-              <CallGraph
-                run={routeRun}
-                index={index}
-                onOpenStep={(stepId) =>
-                  navigate(timelinePath(routeRun.id, stepId))
-                }
-              />
+              <Subtree index={index} ids={[routeRun.id]}>
+                {(hydrated) => {
+                  const run = hydrated.byId.get(routeRun.id);
+                  return run ? (
+                    <CallGraph
+                      run={run}
+                      index={hydrated}
+                      onOpenStep={(stepId) =>
+                        navigate(timelinePath(routeRun.id, stepId))
+                      }
+                    />
+                  ) : (
+                    unknownRun
+                  );
+                }}
+              </Subtree>
             ) : (
               unknownRun
             )
@@ -211,7 +269,7 @@ export function Inspector({
               filters={runFilters}
               onFiltersChange={setRunFilters}
               selection={selection}
-              selectedRuns={runsFor(selection)}
+              selectedRuns={metasFor(selection)}
               onTogglePick={togglePick}
               onOpenRun={openRun}
               onDiff={() => navigate(diffPath(selection))}
@@ -222,11 +280,25 @@ export function Inspector({
         <Route
           path={ROUTES.diff}
           element={
-            <RunDiff
-              index={index}
-              selectedRuns={diffRuns}
-              onBack={() => navigate(ROUTES.runs)}
-            />
+            diffMetas.length === 2 ? (
+              <Subtree index={index} ids={diffMetas.map((m) => m.id)}>
+                {(hydrated) => (
+                  <RunDiff
+                    index={hydrated}
+                    selectedRuns={diffMetas
+                      .map((m) => hydrated.byId.get(m.id))
+                      .filter((r): r is Run => r !== undefined)}
+                    onBack={() => navigate(ROUTES.runs)}
+                  />
+                )}
+              </Subtree>
+            ) : (
+              <RunDiff
+                index={EMPTY_RUN_INDEX}
+                selectedRuns={[]}
+                onBack={() => navigate(ROUTES.runs)}
+              />
+            )
           }
         />
 

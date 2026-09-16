@@ -14,6 +14,11 @@ import {
   useNavigate,
 } from "react-router";
 import { Header } from "./components/Header";
+import {
+  CallGraphSkeleton,
+  RunDiffSkeleton,
+  TimelineSkeleton,
+} from "./components/Skeleton";
 import { StatusScreen } from "./components/StatusScreen";
 import { useRunSubtree } from "./hooks/useRuns";
 import { scrollToElement } from "./lib/dom";
@@ -53,11 +58,13 @@ interface SubtreeProps {
   index: MetaIndex;
   /** Runs to hydrate, along with everything they spawned. */
   ids: string[];
+  /** The waiting view's own shape, shown until its trajectories arrive. */
+  skeleton: ReactElement;
   children: (hydrated: RunIndex) => ReactElement;
 }
 
 /** Fetches the trajectories a view needs before rendering it. */
-function Subtree({ index, ids, children }: SubtreeProps) {
+function Subtree({ index, ids, skeleton, children }: SubtreeProps) {
   const state = useRunSubtree(index, ids);
 
   if (state.status === "error") {
@@ -70,7 +77,7 @@ function Subtree({ index, ids, children }: SubtreeProps) {
     );
   }
   if (state.status === "loading") {
-    return <StatusScreen title="LOADING TRAJECTORY" detail={ids.join(" · ")} />;
+    return skeleton;
   }
   return children(state.index);
 }
@@ -210,7 +217,11 @@ export function Inspector({
           path={ROUTES.timeline}
           element={
             routeRun ? (
-              <Subtree index={index} ids={[routeRun.id]}>
+              <Subtree
+                index={index}
+                ids={[routeRun.id]}
+                skeleton={<TimelineSkeleton />}
+              >
                 {(hydrated) => {
                   const run = hydrated.byId.get(routeRun.id);
                   return run ? (
@@ -239,7 +250,11 @@ export function Inspector({
           path={ROUTES.graph}
           element={
             routeRun ? (
-              <Subtree index={index} ids={[routeRun.id]}>
+              <Subtree
+                index={index}
+                ids={[routeRun.id]}
+                skeleton={<CallGraphSkeleton />}
+              >
                 {(hydrated) => {
                   const run = hydrated.byId.get(routeRun.id);
                   return run ? (
@@ -281,7 +296,11 @@ export function Inspector({
           path={ROUTES.diff}
           element={
             diffMetas.length === 2 ? (
-              <Subtree index={index} ids={diffMetas.map((m) => m.id)}>
+              <Subtree
+                index={index}
+                ids={diffMetas.map((m) => m.id)}
+                skeleton={<RunDiffSkeleton />}
+              >
                 {(hydrated) => (
                   <RunDiff
                     index={hydrated}

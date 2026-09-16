@@ -1038,6 +1038,68 @@ button:focus-visible,
   color: oklch(0.85 0.14 25);
 }
 
+/* skeletons: the shape of a view, drawn while its data loads */
+@keyframes sk-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.sk-bar {
+  display: block;
+  flex: none;
+  border-radius: 2px;
+  background: oklch(0.3 0.012 264);
+  animation: sk-pulse 1.5s ease-in-out infinite;
+  animation-delay: var(--sk-delay, 0s);
+}
+.sk-bar--dot {
+  border-radius: 50%;
+}
+.sk-bar--end {
+  margin-left: auto;
+}
+.sk-bar--chip {
+  background: oklch(0.26 0.01 264);
+}
+.sk-bar--tag {
+  background: oklch(0.28 0.03 300);
+}
+.sk-bar--badge {
+  background: oklch(0.32 0.04 248);
+}
+.sk-bar--slot {
+  background: oklch(0.28 0.035 248);
+}
+.sk-bar--btn {
+  background: oklch(0.36 0.07 248);
+}
+
+/* Rows the real views make clickable; the placeholders are not. */
+.sk-static {
+  cursor: default;
+}
+.sk-row {
+  padding: 9px 12px;
+  border-bottom: 1px solid oklch(0.225 0.01 264);
+}
+.sk-row--graph {
+  padding: 8px 10px;
+}
+.sk-stack > .sk-bar + .sk-bar {
+  margin-top: 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-bar {
+    animation: none;
+  }
+}
+
 /* step map rail */
 .step-map {
   position: sticky;

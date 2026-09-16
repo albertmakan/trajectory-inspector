@@ -1,6 +1,11 @@
+import { useMatch } from 'react-router';
+import { Header } from './components/Header';
+import { CallGraphSkeleton, RunDiffSkeleton, RunListSkeleton, TimelineSkeleton } from './components/Skeleton';
 import { StatusScreen } from './components/StatusScreen';
 import { SOURCE_LABEL, useRunMeta } from './hooks/useRuns';
 import { Inspector, type InspectorOptions } from './Inspector';
+import { ROUTES } from './lib/routes';
+import { EMPTY_RUN_INDEX } from './lib/runs';
 
 export type AppProps = InspectorOptions;
 
@@ -16,11 +21,7 @@ export default function App(props: AppProps) {
     );
   }
   if (state.status === 'loading') {
-    return (
-      <div className="app">
-        <StatusScreen title="LOADING RUNS" detail={SOURCE_LABEL} />
-      </div>
-    );
+    return <AppSkeleton />;
   }
   if (state.index.roots.length === 0) {
     return (
@@ -30,4 +31,27 @@ export default function App(props: AppProps) {
     );
   }
   return <Inspector index={state.index} {...props} />;
+}
+
+/** The chrome plus the skeleton of whichever view the URL asks for, before any run is known. */
+function AppSkeleton() {
+  const onTimeline = useMatch(ROUTES.timeline) !== null;
+  const onGraph = useMatch(ROUTES.graph) !== null;
+  const onDiff = useMatch(ROUTES.diff) !== null;
+
+  return (
+    <div className="app">
+      {/* No metadata yet, so there are no tabs to restore and nothing to name them with. */}
+      <Header index={EMPTY_RUN_INDEX} tabs={[]} activeKey={undefined} onClose={() => {}} project="" />
+      {onGraph ? (
+        <CallGraphSkeleton />
+      ) : onTimeline ? (
+        <TimelineSkeleton />
+      ) : onDiff ? (
+        <RunDiffSkeleton />
+      ) : (
+        <RunListSkeleton />
+      )}
+    </div>
+  );
 }

@@ -107,7 +107,7 @@ The app is designed against a stable internal schema (`Run`/`Step`) with adapter
 
 ## Tech stack
 
-- **Frontend**: Next.js, React
+- **Frontend**: Vite + React
 - **Data / auth**: Supabase (or AWS Lambda + S3, depending on deployment target)
 - **Instrumentation**: TypeScript script using the Anthropic SDK
 - **Design**: prototyped in Claude Design, handed off to Claude Code for production implementation

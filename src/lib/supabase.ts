@@ -13,3 +13,14 @@ const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
  */
 export const supabase: SupabaseClient | null =
   url && publishableKey ? createClient(url, publishableKey) : null;
+
+/** The one project `anon` may read — see 20260918120000_add_runs_project.sql. */
+export const DEMO_PROJECT = 'demo';
+
+/**
+ * Which project the run list shows. The select policy pins the publishable key
+ * to `demo`, so pointing this elsewhere returns nothing until that policy is
+ * widened; it exists so the scope is explicit in the query rather than implicit
+ * in RLS, and so a future authenticated view has a knob to turn.
+ */
+export const RUNS_PROJECT = import.meta.env.VITE_PROJECT || DEMO_PROJECT;

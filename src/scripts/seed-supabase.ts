@@ -40,7 +40,9 @@ for (const [i, run] of ordered.entries()) {
       "Content-Type": "application/json",
       apikey: secretKey,
     },
-    body: JSON.stringify(run),
+    // This seeds the public demo dataset, so every run is scoped to it —
+    // ingest would otherwise file them under the private "default" project.
+    body: JSON.stringify({ ...run, project: "demo" }),
   });
 
   if (res.ok) {

@@ -1,5 +1,6 @@
 export interface Run {
   id: string; // uuid
+  project?: string; // scopes the run; only "demo" is publicly readable. Omitted = "default"
   parentRunId?: string; // set if this run was spawned by another run
   parentStepId?: string; // which step in the parent spawned it
   depth: number; // 0 for root, 1 for sub-agent, 2 for sub-sub-agent...

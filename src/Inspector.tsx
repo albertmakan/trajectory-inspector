@@ -36,6 +36,7 @@ import {
   type RunIndex,
   type RunMeta,
 } from "./lib/runs";
+import { RUNS_PROJECT } from "./lib/supabase";
 import { openTab, tabKey, tabPath, type OpenTab } from "./lib/tabs";
 import type { Run } from "./schema";
 import type { View } from "./types";
@@ -207,7 +208,7 @@ export function Inspector({
         tabs={openTabs}
         activeKey={activeKey}
         onClose={closeTab}
-        project=""
+        project={RUNS_PROJECT}
       />
 
       <Routes>

@@ -1,0 +1,22 @@
+# Netlify build for the static SPA. The Supabase credentials are set in the
+# Netlify UI rather than here: VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.
+# SUPABASE_SECRET_KEY must NOT be set here — seeding is a local-only operation,
+# and the secret key is rejected from a browser anyway.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 8 requires Node ^20.19 || >=22.12; pinned so a change to Netlify's
+  # default image can't move the build out from under us.
+  NODE_VERSION = "22"
+
+# The app routes with BrowserRouter, so paths like /runs/<id>, /diff/<a>/<b> and
+# /runs/<id>/graph exist only in the client. Without this rewrite Netlify looks
+# for a matching file, finds none, and 404s on every deep link and every refresh
+# — which would break the shareable step URLs the timeline is built around.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

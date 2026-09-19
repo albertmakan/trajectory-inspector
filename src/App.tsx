@@ -6,6 +6,7 @@ import { SOURCE_LABEL, useRunMeta } from './hooks/useRuns';
 import { Inspector, type InspectorOptions } from './Inspector';
 import { ROUTES } from './lib/routes';
 import { EMPTY_RUN_INDEX } from './lib/runs';
+import { RUNS_PROJECT } from './lib/supabase';
 
 export type AppProps = InspectorOptions;
 
@@ -41,8 +42,10 @@ function AppSkeleton() {
 
   return (
     <div className="app">
-      {/* No metadata yet, so there are no tabs to restore and nothing to name them with. */}
-      <Header index={EMPTY_RUN_INDEX} tabs={[]} activeKey={undefined} onClose={() => {}} project="" />
+      {/* No metadata yet, so there are no tabs to restore and nothing to name them with.
+          The project is a build-time constant rather than loaded data, so it shows
+          immediately and doesn't shift when the runs arrive. */}
+      <Header index={EMPTY_RUN_INDEX} tabs={[]} activeKey={undefined} onClose={() => {}} project={RUNS_PROJECT} />
       {onGraph ? (
         <CallGraphSkeleton />
       ) : onTimeline ? (
